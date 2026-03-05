@@ -8,7 +8,7 @@ load_dotenv()
 
 # Configure Gemini
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-1.5-flash")
+model = genai.GenerativeModel("gemini-pro")
 
 def build_event_context():
     """Builds a text summary of all current events to feed to Gemini as context."""

@@ -39,9 +39,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await sample(update, context)
 
 def get_main_menu_keyboard():
-    """Returns a persistent ReplyKeyboardMarkup for easy access to updates."""
+    """Returns a ReplyKeyboardMarkup for easy access to updates."""
     keyboard = [[KeyboardButton("📢 Give me update")]]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, persistent=True)
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Routes messages: 'Give me update' shows all cards; anything else goes to Gemini AI."""
