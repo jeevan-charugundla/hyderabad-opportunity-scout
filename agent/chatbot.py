@@ -9,8 +9,9 @@ load_dotenv()
 
 # Configure Gemini
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-# Use 1.5-flash for vision and speed
-model = genai.GenerativeModel("gemini-1.5-flash")
+
+# Use a model that is available for this API key
+model = genai.GenerativeModel("gemini-2.5-flash")
 
 def build_event_context():
     """Builds a text summary of all current events to feed to Gemini as context."""
@@ -69,7 +70,8 @@ async def chat_with_gemini(user_message: str) -> str:
         return response.text.strip()
     
     except Exception as e:
-        logging.error(f"Gemini error: {e}")
+        import traceback
+        logging.error(f"Gemini error: {traceback.format_exc()}")
         return (
             "🤖 I'm having a tiny brain glitch! Try again in a moment.\n"
             "Or click 📢 Give me update to see all events directly."
@@ -93,7 +95,8 @@ async def scan_poster(image_path: str) -> dict:
         json_text = response.text.replace("```json", "").replace("```", "").strip()
         return json.loads(json_text)
     except Exception as e:
-        logging.error(f"Poster Scan Error: {e}")
+        import traceback
+        logging.error(f"Poster Scan Error: {traceback.format_exc()}")
         return None
 
 async def generate_project_ideas(event_title: str) -> str:
