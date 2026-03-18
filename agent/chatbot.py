@@ -85,14 +85,23 @@ async def scan_poster(image_path: str) -> dict:
         img = Image.open(image_path)
         
         prompt = (
-            "Extract event details from this poster. Return ONLY a JSON object with: "
-            "title, date, location, registration_deadline (if visible), and a 1-sentence description. "
-            "If info is missing, use 'Unknown'."
+            "You are an expert AI event assistant. Read the provided event poster image carefully and extract all visible text. "
+            "Return a raw JSON object (without markdown formatting) containing the exact extracted details. "
+            "Keys must be exactly: 'title', 'date', 'location', 'registration_deadline', and 'description'. "
+            "For 'description', write a very short summary of what the event is about based on the poster text. "
+            "If any field cannot be found, set its value to 'Unknown'."
         )
         
-        response = model.generate_content([prompt, img])
+        response = model.generate_content(
+            [prompt, img],
+            generation_config=genai.GenerationConfig(
+                response_mime_type="application/json"
+            )
+        )
         # Clean the response to ensure it's valid JSON
-        json_text = response.text.replace("```json", "").replace("```", "").strip()
+        json_text = response.text.strip()
+        if json_text.startswith("```json"):
+            json_text = json_text.replace("```json", "", 1).replace("```", "").strip()
         return json.loads(json_text)
     except Exception as e:
         import traceback
