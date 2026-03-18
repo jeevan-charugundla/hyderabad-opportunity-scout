@@ -7,7 +7,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandle
 from urllib.parse import quote
 from .config import TELEGRAM_BOT_TOKEN
 from .scout import discover_events
-from .chatbot import chat_with_gemini
+from .chatbot import chat_with_gemini, scan_poster
 
 # Enable logging
 logging.basicConfig(
@@ -96,14 +96,12 @@ async def sample(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 def generate_calendar_url(event):
-    """Generates a Google Calendar URL set to the REGISTRATION DEADLINE day.
-    This is intentional — it reminds you to register BEFORE the deadline.
-    """
+    """Generates a Google Calendar URL set to the REGISTRATION DEADLINE day."""
     base_url = "https://www.google.com/calendar/render?action=TEMPLATE"
     title = quote(f"⏰ DEADLINE: Register for {event['title']}")
-    # Use reg deadline for calendar (not event date) — so you get reminded to register!
-    start = event['start_time'].replace("-", "").replace(":", "")
-    end = event['end_time'].replace("-", "").replace(":", "")
+    # Use reg deadline for calendar (not event date)
+    start = event.get('start_time', "20260330T090000Z").replace("-", "").replace(":", "")
+    end = event.get('end_time', "20260330T235900Z").replace("-", "").replace(":", "")
     dates = f"{start}/{end}"
     detail_text = (
         f"📌 Register before: {event['deadline_display']}\n"
@@ -130,7 +128,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text=f"🚀 You're going to {event_title[:30]}! I'll check in with you in 2 days.",
             show_alert=True
         )
-        # Send a confirmation as a NEW message (text messages have no caption to edit)
         await context.bot.send_message(
             chat_id=query.message.chat_id,
             text=f"✅ *Marked as going!* Follow-up scheduled for:\n*{event_title}*",
@@ -144,7 +141,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         event_title = data.split("_", 1)[1]
         draft_text = (
             f"📝 *Application Draft for:*\n*{event_title}*\n\n"
-            "\"“I am a passionate technology enthusiast from Hyderabad with experience in building "
+            "\"I am a passionate technology enthusiast from Hyderabad with experience in building "
             "real-world projects. I want to participate to collaborate with fellow builders, "
             "learn from mentors, and showcase my technical skills in a competitive environment.\""
         )
@@ -157,7 +154,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def get_event_keyboard(event):
     map_url = "https://www.google.com/maps/search/?api=1&query=" + quote(event['location'])
     cal_url = generate_calendar_url(event)
-    # Truncate title to keep callback_data under 64 bytes (Telegram limit)
     short_title = event['title'][:40]
     
     keyboard = [
@@ -176,11 +172,42 @@ def get_event_keyboard(event):
     return InlineKeyboardMarkup(keyboard)
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Placeholder for OCR processing using AI or Tesseract."""
+    """Downloads the photo and uses Gemini Vision to extract event details in real-time."""
+    message = update.message
+    if not message.photo: return
+
+    photo_file = await message.photo[-1].get_file()
+    temp_dir = "temp_scans"
+    if not os.path.exists(temp_dir): os.makedirs(temp_dir)
+    temp_path = os.path.join(temp_dir, f"{photo_file.file_id}.jpg")
+    await photo_file.download_to_drive(temp_path)
+    
+    status_msg = await update.message.reply_text("🧐 *Scanning Poster with AI...*", parse_mode='Markdown')
+    details = await scan_poster(temp_path)
+    
+    if os.path.exists(temp_path): os.remove(temp_path)
+        
+    if not details:
+        await status_msg.edit_text("❌ Sorry, I couldn't extract details. Make sure the poster is clear!")
+        return
+
+    summary = (
+        f"✅ *Poster Scanned Successfully!*\n\n"
+        f"📌 *Event*: {details.get('title', 'Unknown')}\n"
+        f"📅 *Date*: {details.get('date', 'Unknown')}\n"
+        f"📍 *Venue*: {details.get('location', 'Unknown')}\n"
+        f"⏰ *Deadline*: {details.get('registration_deadline', 'Not mentioned')}\n\n"
+        f"📝 *About*: {details.get('description', 'No description available.')}\n\n"
+        "Would you like to add this to your calendar?"
+    )
+    
+    # Enrich details for the keyboard logic
+    details['link'] = details.get('link', "https://t.me/OpportunityScoutBot")
+    details['deadline_display'] = details.get('registration_deadline', details.get('date', 'Today'))
+    
+    await status_msg.delete()
     await update.message.reply_text(
-        "🧐 *Scanning Poster...*\n\n"
-        "I've detected this might be a technical event! (OCR Simulation Enabled)\n"
-        "Extracted: *Hyderabad Tech Meetup - March 30*\n"
-        "Would you like me to add this to your calendar?",
-        parse_mode='Markdown'
+        summary,
+        parse_mode='Markdown',
+        reply_markup=get_event_keyboard(details)
     )

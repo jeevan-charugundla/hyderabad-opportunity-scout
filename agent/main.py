@@ -47,13 +47,17 @@ async def send_daily_updates(application):
 
 async def follow_up_job(context: ContextTypes.DEFAULT_TYPE):
     """Sends AI project ideas 2 days after calendar addition."""
+    from .chatbot import generate_project_ideas
     job = context.job
+    event_title = job.data
+    
+    logging.info(f"Generating project ideas for {event_title}")
+    ideas = await generate_project_ideas(event_title)
+    
     follow_up_text = (
-        f"👋 *Hey! Preparation time for {job.data}!* (AI Scout)\n\n"
-        "Need a project idea? Here are 3 trending AI topics you could build:\n"
-        "1️⃣ *Agentic RAG*: A bot that reads local docs and takes actions.\n"
-        "2️⃣ *Multimodal Search*: Search your images using natural language.\n"
-        "3️⃣ *Voice-to-Action*: Controlling apps using voice commands.\n\n"
+        f"👋 *Hey! Preparation time for {event_title}!* (AI Scout)\n\n"
+        f"Looking for something to build? Here are 3 unique project ideas for this event:\n\n"
+        f"{ideas}\n\n"
         "Good luck building! 🚀"
     )
     await context.bot.send_message(chat_id=job.chat_id, text=follow_up_text, parse_mode='Markdown')
