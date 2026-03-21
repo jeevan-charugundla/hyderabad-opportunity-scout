@@ -136,6 +136,9 @@ def get_fresh_events(all_events: list, count: int = 5) -> list:
     free_events = [e for e in scored if int(e.get("price", e.get("fee", 0)) or 0) == 0]
     paid_events = [e for e in scored if int(e.get("price", e.get("fee", 0)) or 0) > 0]
     
+    # Prioritize hackathons/workshops in the paid pool
+    paid_events.sort(key=lambda x: any(k in x.get("title", "").lower() for k in ["hack", "work", "hands", "lab"]), reverse=True)
+    
     picked = []
     source_count = {}
     
