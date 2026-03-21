@@ -131,6 +131,30 @@ def scrape_allevents():
             # Deadline (approx future date to keep it alive for a bit)
             deadline = (datetime.now() + timedelta(days=5)).strftime("%Y-%m-%d")
             
+            # Price Parsing
+            import re
+            fee = 0
+            is_free = True
+            try:
+                price_elem = card.select_one('.price')
+                price_text = price_elem.text.strip().lower() if price_elem else ""
+                
+                if "free" in price_text:
+                    fee = 0
+                else:
+                    card_text = card.text.replace(',', '')
+                    inr_matches = re.findall(r'(?:inr|rs\.?|₹)\s*(\d+)', card_text, re.IGNORECASE)
+                    if inr_matches:
+                        fee = int(inr_matches[0])
+                    else:
+                        digits = re.findall(r'\d+', price_text)
+                        fee = int(digits[0]) if digits else 0
+                        
+                is_free = (fee == 0)
+            except Exception:
+                fee = 0
+                is_free = True
+            
             events.append({
                 "title": title,
                 "name": title,
@@ -142,13 +166,13 @@ def scrape_allevents():
                 "end_time": "",
                 "location": venue_str,
                 "venue": venue_str,
-                "price": 0,
-                "fee": 0,
+                "price": fee,
+                "fee": fee,
                 "source": "AllEvents",
                 "register_link": link,
                 "link": link,
                 "description": "Tech event from AllEvents.in",
-                "is_free": True,
+                "is_free": is_free,
             })
     except Exception as e:
         logger.error(f"Error scraping AllEvents: {e}")
