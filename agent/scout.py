@@ -1,41 +1,21 @@
 """
 scout.py — Event discovery for Hyderabad Opportunity Scout
-Static curated events + fallback events if scraping is unavailable.
-Events auto-filtered by registration deadline.
+Scrapes real upcoming tech events in Hyderabad.
 """
 import logging
-from datetime import datetime
+import requests
+from bs4 import BeautifulSoup
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
-
 # ─────────────────────────── FALLBACK EVENTS ────────────────────────────────
-# Always shown if all scrapers return empty — bot never goes silent.
 FALLBACK_EVENTS = [
-    {
-        "title": "HackHyderabad 2025",
-        "name": "HackHyderabad 2025",
-        "categories": ["Hackathon"],
-        "date": "",
-        "reg_deadline": "2099-01-01",
-        "deadline_display": "Open Registration",
-        "start_time": "",
-        "end_time": "",
-        "location": "T-Hub, Hyderabad",
-        "venue": "T-Hub, Hyderabad",
-        "price": 0,
-        "fee": 0,
-        "source": "Unstop",
-        "register_link": "https://unstop.com/hackathons?location=Hyderabad",
-        "link": "https://unstop.com/hackathons?location=Hyderabad",
-        "description": "Annual student hackathon at T-Hub. Build, pitch, win.",
-        "is_free": True,
-    },
     {
         "title": "Google Developer Group Hyderabad Meetup",
         "name": "Google Developer Group Hyderabad Meetup",
         "categories": ["Meetup", "Community"],
-        "date": "",
+        "date": "Ongoing",
         "reg_deadline": "2099-01-01",
         "deadline_display": "Open Registration",
         "start_time": "",
@@ -51,192 +31,16 @@ FALLBACK_EVENTS = [
         "is_free": True,
     },
     {
-        "title": "Web3 & Blockchain Workshop",
-        "name": "Web3 & Blockchain Workshop",
-        "categories": ["Workshop", "Web3"],
-        "date": "",
+        "title": "Hyderabad Hackathons on Unstop",
+        "name": "Hyderabad Hackathons on Unstop",
+        "categories": ["Hackathon"],
+        "date": "Multiple",
         "reg_deadline": "2099-01-01",
-        "deadline_display": "Open Registration",
+        "deadline_display": "Check Unstop for deadlines",
         "start_time": "",
         "end_time": "",
-        "location": "JNTU Hyderabad",
-        "venue": "JNTU Hyderabad",
-        "price": 100,
-        "fee": 100,
-        "source": "Commudle",
-        "register_link": "https://www.commudle.com/communities",
-        "link": "https://www.commudle.com/communities",
-        "description": "Hands-on workshop on Solidity, smart contracts, and DeFi basics.",
-        "is_free": False,
-    },
-    {
-        "title": "AI/ML Bootcamp — Beginners",
-        "name": "AI/ML Bootcamp — Beginners",
-        "categories": ["Workshop", "AI/ML"],
-        "date": "",
-        "reg_deadline": "2099-01-01",
-        "deadline_display": "Open Registration",
-        "start_time": "",
-        "end_time": "",
-        "location": "IIIT Hyderabad",
-        "venue": "IIIT Hyderabad",
-        "price": 0,
-        "fee": 0,
-        "source": "Unstop",
-        "register_link": "https://unstop.com/workshops?location=Hyderabad",
-        "link": "https://unstop.com/workshops?location=Hyderabad",
-        "description": "Free 1-day bootcamp covering Python, sklearn, and model deployment.",
-        "is_free": True,
-    },
-    {
-        "title": "Open Source Contributor Day",
-        "name": "Open Source Contributor Day",
-        "categories": ["Meetup", "Open Source"],
-        "date": "",
-        "reg_deadline": "2099-01-01",
-        "deadline_display": "Open Registration",
-        "start_time": "",
-        "end_time": "",
-        "location": "Koramangala Community Space, Hyderabad",
-        "venue": "Koramangala Community Space, Hyderabad",
-        "price": 0,
-        "fee": 0,
-        "source": "Meetup",
-        "register_link": "https://www.meetup.com/hyderabad-foss/",
-        "link": "https://www.meetup.com/hyderabad-foss/",
-        "description": "Beginner-friendly open source contribution sprint with mentors.",
-        "is_free": True,
-    },
-]
-
-# ─────────────────────────── CURATED EVENTS ─────────────────────────────────
-
-CURATED_EVENTS = [
-    {
-        "title": "Yantra Yugam — 24Hr National Level Hackathon",
-        "name": "Yantra Yugam — 24Hr National Level Hackathon",
-        "categories": ["Hackathon", "National-Level", "ECE/IoT/CS"],
-        "date": "March 24-25, 2026",
-        "reg_deadline": "2026-03-22",
-        "deadline_display": "March 22, 2026",
-        "start_time": "2026-03-24T09:00:00",
-        "end_time": "2026-03-25T18:00:00",
-        "location": "Malla Reddy University, Hyderabad",
-        "venue": "Malla Reddy University, Hyderabad",
-        "price": 350,
-        "fee": 350,
-        "source": "Unstop",
-        "register_link": "https://unstop.com/hackathons?location=Hyderabad",
-        "link": "https://unstop.com/hackathons?location=Hyderabad",
-        "description": "₹50,000 prize pool. Theme: Open Innovation. Web Dev, Drones, AIML, IoT, VLSI domains.",
-        "is_free": False,
-    },
-    {
-        "title": "VNR Design-A-Thon 2026",
-        "name": "VNR Design-A-Thon 2026",
-        "categories": ["Hackathon", "Design", "Product"],
-        "date": "March 24-25, 2026",
-        "reg_deadline": "2026-03-22",
-        "deadline_display": "March 22, 2026",
-        "start_time": "2026-03-22T09:00:00",
-        "end_time": "2026-03-22T23:59:00",
-        "location": "VNR VJIET, Bachupally, Hyderabad",
-        "venue": "VNR VJIET, Bachupally, Hyderabad",
-        "price": 0,
-        "fee": 0,
-        "source": "Unstop",
-        "register_link": "https://unstop.com/hackathons?location=Hyderabad",
-        "link": "https://unstop.com/hackathons?location=Hyderabad",
-        "description": "Free design and product hackathon at VNR VJIET.",
-        "is_free": True,
-    },
-    {
-        "title": "GitTogether Hyderabad — March 2026 Meetup",
-        "name": "GitTogether Hyderabad — March 2026 Meetup",
-        "categories": ["Meetup", "Open Source", "Community"],
-        "date": "March 21, 2026",
-        "reg_deadline": "2026-03-20",
-        "deadline_display": "March 20, 2026 (waitlist — register early!)",
-        "start_time": "2026-03-21T10:00:00",
-        "end_time": "2026-03-21T17:00:00",
-        "location": "Venue TBD, Hyderabad",
-        "venue": "Venue TBD, Hyderabad",
-        "price": 0,
-        "fee": 0,
-        "source": "Meetup",
-        "register_link": "https://www.meetup.com/gittogether-hyderabad/",
-        "link": "https://www.meetup.com/gittogether-hyderabad/",
-        "description": "Monthly GitHub community meetup — open source talks and contributions.",
-        "is_free": True,
-    },
-    {
-        "title": "Vivitsu 2026 — GRIET 24Hr Hackathon",
-        "name": "Vivitsu 2026 — GRIET 24Hr Hackathon",
-        "categories": ["Hackathon", "Engineering", "College"],
-        "date": "March 31, 2026",
-        "reg_deadline": "2026-03-28",
-        "deadline_display": "March 28, 2026",
-        "start_time": "2026-03-31T09:00:00",
-        "end_time": "2026-04-01T09:00:00",
-        "location": "GRIET, Bachupally, Hyderabad",
-        "venue": "GRIET, Bachupally, Hyderabad",
-        "price": 0,
-        "fee": 0,
-        "source": "PlacementPrep",
-        "register_link": "https://placementpreparation.io/hackathons/",
-        "link": "https://placementpreparation.io/hackathons/",
-        "description": "GRIET's flagship 24-hour hackathon — build anything, win prizes.",
-        "is_free": True,
-    },
-    {
-        "title": "FebAIThon — Global AI Hackathon (Hyderabad)",
-        "name": "FebAIThon — Global AI Hackathon (Hyderabad)",
-        "categories": ["Hackathon", "AI/ML", "Microsoft Fabric"],
-        "date": "April 18, 2026",
-        "reg_deadline": "2026-04-10",
-        "deadline_display": "April 10, 2026",
-        "start_time": "2026-04-18T09:00:00",
-        "end_time": "2026-04-18T18:00:00",
-        "location": "Microsoft Office, Gachibowli, Hyderabad",
-        "venue": "Microsoft Office, Gachibowli, Hyderabad",
-        "price": 0,
-        "fee": 0,
-        "source": "Meetup",
-        "register_link": "https://www.meetup.com/hdac-community/",
-        "link": "https://www.meetup.com/hdac-community/",
-        "description": "Global AI hackathon with Microsoft Fabric, Azure, and ML track prizes.",
-        "is_free": True,
-    },
-    {
-        "title": "Commudle — Hyderabad Tech Community Events",
-        "name": "Commudle — Hyderabad Tech Community Events",
-        "categories": ["Meetup", "Workshop", "Community"],
-        "date": "Ongoing",
-        "reg_deadline": "2099-01-01",
-        "deadline_display": "Ongoing — register for any upcoming session",
-        "start_time": "",
-        "end_time": "",
-        "location": "Various venues, Hyderabad",
-        "venue": "Various venues, Hyderabad",
-        "price": 0,
-        "fee": 0,
-        "source": "Commudle",
-        "register_link": "https://www.commudle.com/communities/tfug-hyderabad",
-        "link": "https://www.commudle.com/communities/tfug-hyderabad",
-        "description": "TFUG Hyderabad: regular workshops on AI, ML, TensorFlow, JAX, and more.",
-        "is_free": True,
-    },
-    {
-        "title": "Hyderabad Hackathons — Browse All on Unstop",
-        "name": "Hyderabad Hackathons — Browse All on Unstop",
-        "categories": ["Hackathon", "Various"],
-        "date": "Multiple upcoming",
-        "reg_deadline": "2099-01-01",
-        "deadline_display": "Various deadlines — check Unstop for the latest",
-        "start_time": "",
-        "end_time": "",
-        "location": "Various, Hyderabad",
-        "venue": "Various, Hyderabad",
+        "location": "Hyderabad",
+        "venue": "Hyderabad",
         "price": 0,
         "fee": 0,
         "source": "Unstop",
@@ -247,26 +51,91 @@ CURATED_EVENTS = [
     },
 ]
 
+# ─────────────────────────── SCRAPERS ─────────────────────────────────────
 
-# ─────────────────────────── PUBLIC API ─────────────────────────────────────
+def scrape_allevents():
+    """Scrape upcoming tech events in Hyderabad from allevents.in"""
+    events = []
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    try:
+        url = "https://allevents.in/hyderabad/tech"
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code != 200:
+            return events
+
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        cards = soup.select('li.event-card')
+        
+        for card in cards[:15]:
+            # Title
+            title_elem = card.select_one('.title h3')
+            if not title_elem:
+                continue
+            title = title_elem.text.strip()
+            
+            # Simple keyword filter in case allevents mixes in random stuff
+            lower_title = title.lower()
+            if not any(k in lower_title for k in ("tech", "hackathon", "ai", "ml", "data", "cloud", "developer", "startup", "code", "aws", "cyber", "web", "design")):
+                continue
+            
+            # Link
+            a_elem = card.select_one('a')
+            link = a_elem.get('href', url) if a_elem else url
+            
+            # Date
+            date_elem = card.select_one('.date')
+            date_str = date_elem.text.strip() if date_elem else ""
+            
+            # Venue
+            venue_elem = card.select_one('.subtitle')
+            venue_str = venue_elem.text.strip() if venue_elem else "Hyderabad"
+            
+            # Deadline (approx future date to keep it alive for a bit)
+            deadline = (datetime.now() + timedelta(days=5)).strftime("%Y-%m-%d")
+            
+            events.append({
+                "title": title,
+                "name": title,
+                "categories": ["Tech Event", "Community"],
+                "date": date_str,
+                "reg_deadline": deadline,
+                "deadline_display": date_str,
+                "start_time": "",
+                "end_time": "",
+                "location": venue_str,
+                "venue": venue_str,
+                "price": 0,
+                "fee": 0,
+                "source": "AllEvents",
+                "register_link": link,
+                "link": link,
+                "description": "Tech event from AllEvents.in",
+                "is_free": True,
+            })
+    except Exception as e:
+        logger.error(f"Error scraping AllEvents: {e}")
+    return events
+
 
 def discover_events() -> list:
     """
-    Returns all active curated events sorted by registration deadline.
-    Falls back to FALLBACK_EVENTS if none are found.
+    Scrapes live events from multiple sources.
+    Falls back to FALLBACK_EVENTS if scrapers fail.
     """
+    scraped_events = []
+    
+    # Run scrapers
+    scraped_events.extend(scrape_allevents())
+    
+    events = scraped_events + FALLBACK_EVENTS
     today = datetime.now().strftime("%Y-%m-%d")
-
+    
     try:
-        active = [e for e in CURATED_EVENTS if e.get("reg_deadline", "9999") >= today]
-        active.sort(key=lambda x: x.get("reg_deadline", "9999"))
+        active = [e for e in events if e.get("reg_deadline", "2099-01-01") >= today]
+        active.sort(key=lambda x: x.get("reg_deadline", "2099-01-01"))
     except Exception as e:
-        logger.error(f"Error filtering events: {e}")
-        active = []
-
-    if not active:
-        logger.warning("No active curated events — using fallback events.")
-        return FALLBACK_EVENTS
+        logger.error(f"Error sorting events: {e}")
+        active = events
 
     return active
 
