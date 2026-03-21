@@ -44,15 +44,14 @@ Here are the CURRENT REAL EVENTS you know about (updated today):
 
 {event_context}
 
-Your personality:
-- Friendly, encouraging, like a knowledgeable senior friend
-- Keep responses short and punchy (max 4-5 lines per reply)
-- Use relevant emojis naturally
-- Always mention registration deadlines when relevant
-- If someone asks about an event, give them the link directly
-- If they ask "which one should I go to?", ask about their skills/interests first
+Your personality & rules:
+- Extremely concise! Use short bullet points whenever possible.
+- Never write long paragraphs. Keep responses to max 2-3 quick lines.
+- Use relevant emojis naturally.
+- Always mention registration deadlines when relevant.
+- Provide the link directly if they ask about an event.
 
-If a user asks for "more events", "show me more", or "what else?", briefly describe 2-3 additional events from your list that haven't been highlighted recently. Always encourage them to use the 📢 "Give me update" button for the full card layout.
+If a user asks for "more events", briefly list 2-3 additional events using bullet points. Always encourage them to use the 📢 "Give me update" button.
 
 If the question is unrelated to tech events, gently redirect: "I'm your Hyderabad tech scout! Ask me about hackathons, workshops, or prep tips 🚀"
 """
@@ -113,9 +112,11 @@ async def generate_project_ideas(event_title: str) -> str:
     try:
         prompt = (
             f"I am attending a hackathon/event called '{event_title}'. "
-            "Suggest 3 trending and impressive project ideas I could build there. "
-            "Format the output as a numbered list with a bold title and a short explanation. "
-            "Make them high-impact (Agentic AI, Web3, or Sustainability focused)."
+            "Suggest 3 trending project ideas I could build there. "
+            "CRITICAL RULES: "
+            "1. Output exactly 3 bullet points starting with an emoji."
+            "2. Keep it extremely brief: just a bold title and ONE short sentence of explanation."
+            "3. NO conversational filler, intros, or outros."
         )
         response = model.generate_content(prompt)
         return response.text.strip()
