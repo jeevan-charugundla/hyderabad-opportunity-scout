@@ -184,18 +184,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def sample(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Sends ALL active events as individual cards sorted by deadline."""
+    """Sends exactly 5 active events as individual cards."""
+    from .alert_engine import get_fresh_events
     events = discover_events()
     if not events:
         await update.message.reply_text("🔎 No upcoming events found right now. Check back later!")
         return
 
+    # Only give 5 events per the user's request
+    fresh_picks = get_fresh_events(events, count=5)
+
     await update.message.reply_text(
-        f"🔍 *Found {len(events)} opportunities!* (sorted by deadline)\n"
+        f"🔍 *Here are your top {len(fresh_picks)} picks!* 🚀\n"
         "━━━━━━━━━━━━━━━━━━━━━━",
         parse_mode="Markdown",
     )
-    for event in events:
+    for event in fresh_picks:
         text, keyboard = format_event_card(event)
         await update.message.reply_text(text=text, parse_mode="Markdown", reply_markup=keyboard)
 
@@ -206,7 +210,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
 
     if text == "📢 Give me update":
-        await update.message.reply_text("⚡ *Fetching latest opportunities...*", parse_mode="Markdown")
+        await update.message.reply_text("⚡ *Fetching top 5 opportunities...*", parse_mode="Markdown")
         await sample(update, context)
 
     elif text == "⭐ My Saved Events":

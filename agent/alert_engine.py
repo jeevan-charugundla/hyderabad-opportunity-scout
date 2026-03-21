@@ -94,8 +94,9 @@ def score(event: dict, day_index: int) -> float:
 
 def get_fresh_events(all_events: list, count: int = 5) -> list:
     """
-    Returns `count` events the user hasn't seen, or seen 7+ days ago.
-    Falls back to full reset if nothing fresh.
+    Returns exactly `count` events.
+    Enforces at least 2 PAID events (if available, <= 150 INR) and the rest FREE.
+    Tracks seen history.
     """
     seen = load_seen_registry()
     today = date.today()
@@ -104,6 +105,11 @@ def get_fresh_events(all_events: list, count: int = 5) -> list:
     seen_but_old = []
 
     for event in all_events:
+        # Filter out expensive events explicitly based on user request (<= 150 INR)
+        fee = int(event.get("price", event.get("fee", 0)) or 0)
+        if fee > 150:
+            continue
+            
         h = make_hash(event)
         last_shown = seen.get(h)
         if last_shown is None:
@@ -120,21 +126,44 @@ def get_fresh_events(all_events: list, count: int = 5) -> list:
     if not pool:
         logger.info("All events seen recently — resetting seen registry for freshness.")
         clear_seen_registry()
-        pool = all_events
+        # Rebuild pool with price filter
+        pool = [e for e in all_events if int(e.get("price", e.get("fee", 0)) or 0) <= 150]
 
     day_index = today.weekday()
     scored = sorted(pool, key=lambda e: score(e, day_index), reverse=True)
-
-    # source cap: max 2 per source
+    
+    # Segregate free vs paid
+    free_events = [e for e in scored if int(e.get("price", e.get("fee", 0)) or 0) == 0]
+    paid_events = [e for e in scored if int(e.get("price", e.get("fee", 0)) or 0) > 0]
+    
     picked = []
     source_count = {}
-    for event in scored:
+    
+    # 1. Pick at least 2 PAID events (hackathons/workshops preferred)
+    target_paid = min(2, len(paid_events))
+    for event in paid_events:
+        if len(picked) >= target_paid:
+            break
         src = event.get("source", "?")
         if source_count.get(src, 0) < 2:
             picked.append(event)
             source_count[src] = source_count.get(src, 0) + 1
-        if len(picked) == count:
+            
+    # 2. Fill the rest with FREE events (up to `count` total)
+    for event in free_events:
+        if len(picked) >= count:
             break
+        src = event.get("source", "?")
+        if source_count.get(src, 0) < 2:
+            picked.append(event)
+            source_count[src] = source_count.get(src, 0) + 1
+            
+    # 3. If we STILL don't have enough (due to lack of free events), backfill with more paid if any
+    for event in paid_events:
+        if len(picked) >= count:
+            break
+        if event not in picked:
+            picked.append(event)
 
     # Mark picked as seen today
     for event in picked:
